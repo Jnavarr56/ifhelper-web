@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useContext } from 'react'
 import { Redirect, Switch } from 'react-router-dom'
 
 import { RouteWithLayout } from 'components';
@@ -24,52 +24,92 @@ import axios from 'axios'
 
 import AuthContext from './context' 
 
+import { useLocation, useHistory } from 'react-router-dom';
+import { LinearProgress } from '@material-ui/core';
+import jsCookie from 'js-cookie'
+
+
+const GoogleOAuthCallback = () => {
+
+    const { signIn }  = useContext(AuthContext);
+    const { push }  = useHistory();
+
+
+    useEffect(() => {
+        let mounted = true;
+        const URL = `http://localhost/api/authentication/callback/google${window.location.search}`;
+        const getTokens = () => {
+            axios.get(URL, { withCredentials: true })
+            .then(({ data }) => {
+                if (mounted) {
+                    signIn(
+                        data.access_token,  
+                        data.authenticated_user
+                    );
+                }
+            }).catch(() => push('/sign-in'));
+        }
+
+        getTokens();
+        return () => mounted = false;
+    }, []);
+
+    return <LinearProgress variant="indeterminate"/>
+}
+
 const AppAuthenticator = () => {
 
     const [session, setSession] = useState(null);
     const [fetching, setFetching] = useState(true);
     
-    const [cookies, setCookie, removeCookie] = useCookies();
-
-
     useEffect(() => {
+        const token = jsCookie.get('_ifhelper_at');
 
-        if (cookies._ifhelper_at) {
-            const headers = { Authorization: `Bearer ${cookies._ifhelper_at}`}
-            axios.get(process.env.REACT_APP_API_URL + '/authentication/authorize', { headers })
-                .then(({ data: { authenticated_user} }) => {
-                    setSession(authenticated_user)
-                    setFetching(false)
+        if (token) {
+            const headers = { Authorization: `Bearer ${token}` };
+            const config = { headers, withCredentials: true };
+            const URL = `${process.env.REACT_APP_API_URL}/authentication/authorize`;
+
+            axios.get(URL, config)
+                .then(({ data }) => {
+                    const { authenticated_user, access_token } = data;
+                    setSession(authenticated_user);
+                    setFetching(false);
                 })
                 .catch(({ response }) => {
-                    console.log(response)
+                    jsCookie.remove('_ifhelper_at');
                     setFetching(false)
-                })
+                });
+
         } else {
             setFetching(false);
         }
 
-        console.log();
-
-    }, [])
-
+    }, []);
 
     const contextVal = useMemo(() => ({
         session,
-        signIn: (token, sessionData) => {
-            setCookie('_ifhelper_at', token, { sameSite: true })
-            setSession(sessionData)
+        signIn: (accessToken, userData) => {
+            const expires = new Date(Date.now() + (60 * 60 * 24 * 14 * 1000));
+            jsCookie.set('_ifhelper_at', accessToken, { path: '/', expires });
+            setSession(userData);
         },
         signOut: () => {
-            const headers = { Authorization: `Bearer ${cookies._ifhelper_at}`}
-            axios.post(process.env.REACT_APP_API_URL + '/authentication/sign-out', {}, { headers })
-                .then(() => {
-                    removeCookie('_ifhelper_at')
-                    setSession(null)
+            const token = jsCookie.get('_ifhelper_at');
+            const headers = { Authorization: `Bearer ${token}` };
+            const config = { headers, withCredentials: true };
+
+            console.log(config);
+            jsCookie.remove('_ifhelper_at');
+            setSession(null);
+            
+            axios.post(process.env.REACT_APP_API_URL + '/authentication/sign-out', {}, config)
+                .then(({ data }) => {
+                    console.log(data);
                 })
-                .catch(({ response }) => {
-                    console.log(response)
-                }).finally(() => setSession(null))
+                .catch((error) => {
+                    console.log(error);
+                })
         },
     }), [ session ]);
 
@@ -78,6 +118,7 @@ const AppAuthenticator = () => {
     return (
         <AuthContext.Provider value={contextVal}>
             {session ? (
+                
                 <Switch>
                     <RouteWithLayout
                         component={DashboardView}
@@ -142,6 +183,12 @@ const AppAuthenticator = () => {
                         exact
                         layout={MinimalLayout}
                         path="/sign-up"
+                    /> 
+                    <RouteWithLayout
+                        component={GoogleOAuthCallback}
+                        exact
+                        layout={MinimalLayout}
+                        path="/callback/auth/google"
                     /> 
                     <Redirect to="/sign-in" />
                 </Switch>

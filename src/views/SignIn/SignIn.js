@@ -167,7 +167,7 @@ const SignIn = props => {
   }, [formState.values]);
 
   const handleBack = () => {
-    history.goBack();
+    history.push('/sign-up');
   };
 
   const handleChange = event => {
@@ -192,20 +192,32 @@ const SignIn = props => {
 
   const handleSignIn = event => {
     event.preventDefault();
-
     setFetching(true);
-
       axios.post(
         `${process.env.REACT_APP_API_URL}/authentication/sign-in`, 
         formState.values
       ).then(({ data }) => {
-        signIn(data.access_token, data.authenticated_user)
+        signIn(data.access_token, data.authenticated_user);
       }).catch(({ response: { status } }) => {
         if (status === 401) {
           setUnauthorized(true);
         } else {
           alert('Please try again later.')
         }
+        setFetching(false);
+      });
+  };
+
+  const handleGoogleAuth = event => {
+    event.preventDefault();
+    setFetching(true);
+      axios.get(
+        `${process.env.REACT_APP_API_URL}/authentication/sign-in/google`, 
+      ).then(({ data: { consent_screen_url } }) => {
+        window.location.href = consent_screen_url;
+      }).catch(error => {
+        console.trace(error);
+        alert('Please try again later.');
         setFetching(false);
       });
   };
@@ -292,7 +304,7 @@ const SignIn = props => {
                   container
                   spacing={2}
                 >
-                  <Grid item>
+                  {/* <Grid item>
                     <Button
                       color="primary"
                       onClick={handleSignIn}
@@ -302,10 +314,11 @@ const SignIn = props => {
                       <FacebookIcon className={classes.socialIcon} />
                       Login with Facebook
                     </Button>
-                  </Grid>
-                  <Grid item>
+                  </Grid> */}
+                  <Grid item xs={12}>
                     <Button
-                      onClick={handleSignIn}
+                      fullWidth
+                      onClick={handleGoogleAuth}
                       size="large"
                       variant="contained"
                     >

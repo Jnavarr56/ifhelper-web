@@ -11,18 +11,28 @@ import {
   Link,
   FormHelperText,
   Checkbox,
-  Typography
+  Typography,
+  Dialog,
+  CircularProgress,
+  DialogContent,
+  DialogTitle,
+  DialogContentText,
+  DialogActions,
+  Divider
 } from '@material-ui/core';
 import ArrowBackIcon from '@material-ui/icons/ArrowBack';
+import CloseIcon from '@material-ui/icons/Close';
+import { Alert, AlertTitle } from '@material-ui/lab'
+import axios from 'axios'
 
 const schema = {
-  firstName: {
+  first_name: {
     presence: { allowEmpty: false, message: 'is required' },
     length: {
       maximum: 32
     }
   },
-  lastName: {
+  last_name: {
     presence: { allowEmpty: false, message: 'is required' },
     length: {
       maximum: 32
@@ -137,6 +147,17 @@ const useStyles = makeStyles(theme => ({
   },
   signUpButton: {
     margin: theme.spacing(2, 0)
+  },
+  hideDialogPaper: {
+    '& .MuiDialog-paper': {
+      backgroundColor: 'transparent',
+      boxShadow: 'none'
+    }
+  },
+  alert: {
+    '& *': {
+      color: 'inherit'
+    }
   }
 }));
 
@@ -144,6 +165,10 @@ const SignUp = props => {
   const { history } = props;
 
   const classes = useStyles();
+
+  const [ fetching, setFetching ]  = useState(false);
+  const [ registrationResult, setRegistrationResult ]  = useState(null);
+  const [ alert, setAlert ]  = useState(null);
 
   const [formState, setFormState] = useState({
     isValid: false,
@@ -182,18 +207,84 @@ const SignUp = props => {
   };
 
   const handleBack = () => {
-    history.goBack();
+    history.push('/sign-in');
   };
 
   const handleSignUp = event => {
     event.preventDefault();
-    history.push('/');
+
+    setFetching(true);
+
+    const URL = `${process.env.REACT_APP_API_URL}/registration/sign-up`;
+    const payload = formState.values;
+    const requestConfig = { withCredentials: true };
+
+    axios.post(URL, payload, requestConfig)
+      .then(response => {
+        setFetching(false);
+
+        const { new_user } = response.data;
+        const { first_name, email } = new_user;
+
+        
+        setRegistrationResult({
+          title: `Welcome ${first_name}!`,
+          text: `Your account was created. We have 
+          sent an email with a 
+          confirmation link to ${email}. 
+          In order to complete the sign-up process, 
+          please click the confirmation link.`
+        });
+      })
+      .catch(error => {
+        setFetching(false);
+
+        let alertData;
+
+        if (!error.response) {
+          alertData = {
+            title: "Oops!",
+            severity: "error",
+            text: "There's a problem. Please try again later."
+          };
+        } else {
+          const { data, status } = error.response;
+          const { error_code } = data;
+          if (status !== 400 || error_code !== "USER WITH EMAIL ALREADY EXISTS") {
+            alertData = {
+              title: "Oops!",
+              severity: "error",
+              text: "There's a problem. Please try again later."
+            };
+          } else {
+            alertData = {
+              title: "Email Unavailable",
+              severity: "error",
+              text: "An account with this email already exists."
+            };
+          }
+        }
+
+        setAlert(alertData);
+        
+      })
   };
 
   const hasError = field =>
     formState.touched[field] && formState.errors[field] ? true : false;
 
   return (
+    <>
+    {Boolean(alert) && (
+      <Alert className={classes.alert} severity={alert.severity} variant="filled" color="error" action={
+        <IconButton onClick={() => setAlert(null)}>
+          <CloseIcon />
+        </IconButton>
+      }>
+        <AlertTitle >{alert.title}</AlertTitle>
+        {alert.text}
+      </Alert>
+    )}
     <div className={classes.root}>
       <Grid
         className={classes.grid}
@@ -261,30 +352,30 @@ const SignUp = props => {
                 </Typography>
                 <TextField
                   className={classes.textField}
-                  error={hasError('firstName')}
+                  error={hasError('first_name')}
                   fullWidth
                   helperText={
-                    hasError('firstName') ? formState.errors.firstName[0] : null
+                    hasError('first_name') ? formState.errors.first_name[0] : null
                   }
                   label="First name"
-                  name="firstName"
+                  name="first_name"
                   onChange={handleChange}
                   type="text"
-                  value={formState.values.firstName || ''}
+                  value={formState.values.first_name || ''}
                   variant="outlined"
                 />
                 <TextField
                   className={classes.textField}
-                  error={hasError('lastName')}
+                  error={hasError('last_name')}
                   fullWidth
                   helperText={
-                    hasError('lastName') ? formState.errors.lastName[0] : null
+                    hasError('last_name') ? formState.errors.last_name[0] : null
                   }
                   label="Last name"
-                  name="lastName"
+                  name="last_name"
                   onChange={handleChange}
                   type="text"
-                  value={formState.values.lastName || ''}
+                  value={formState.values.last_name || ''}
                   variant="outlined"
                 />
                 <TextField
@@ -375,6 +466,25 @@ const SignUp = props => {
         </Grid>
       </Grid>
     </div>
+    <Dialog className={fetching ? classes.hideDialogPaper : ''} open={fetching || Boolean(registrationResult)}>
+        {fetching && <CircularProgress variant="indeterminate"/>}
+        {Boolean(registrationResult) && (
+          <>
+            <DialogTitle>{registrationResult.title}</DialogTitle>
+            <Divider variant="fullWidth"/>
+              <DialogContent>
+                <DialogContentText>{registrationResult.text}</DialogContentText>
+                <Divider variant="fullWidth"/>
+                <DialogActions>
+                  <Button variant="contained" color="primary" onClick={() => setRegistrationResult(null)}>
+                    Ok
+                  </Button>
+              </DialogActions>
+            </DialogContent>
+          </>
+        )}
+    </Dialog>
+    </>
   );
 };
 

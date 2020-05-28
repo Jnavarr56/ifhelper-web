@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import clsx from 'clsx';
 import PropTypes from 'prop-types';
 import { makeStyles } from '@material-ui/styles';
 import { Avatar, Typography } from '@material-ui/core';
+import { context as AuthContext } from 'authentication';
 
 const useStyles = makeStyles(theme => ({
   root: {
@@ -25,7 +26,6 @@ const Profile = props => {
   const { className, ...rest } = props;
 
   const classes = useStyles();
-
   const user = {
     name: 'Shen Zhi',
     avatar: '/images/avatars/avatar_11.png',
